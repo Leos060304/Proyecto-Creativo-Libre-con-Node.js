@@ -2,6 +2,7 @@ const fileOrganizerService = require('../services/fileOrganizer.service');
 const ocrParserService = require('../services/ocrParser.service');
 const fs = require('fs/promises');
 const path = require('path');
+const ExcelJS = require('exceljs');
 
 const dbPath = path.join(__dirname, '../../storage/expenses.json');
 
@@ -18,6 +19,7 @@ async function saveExpensesDB(data) {
   await fs.writeFile(dbPath, JSON.stringify(data, null, 2));
 }
 
+// 1. Subir comprobante en PDF (Gasto automático)
 exports.uploadReceipt = async (req, res) => {
   try {
     if (!req.file) {
@@ -33,6 +35,7 @@ exports.uploadReceipt = async (req, res) => {
 
     const record = {
       id: Date.now().toString(),
+      type: 'gasto', // gasto por defecto al ser factura
       ...parsedData,
       filePath: finalPath,
       uploadedAt: new Date().toISOString()
@@ -42,15 +45,68 @@ exports.uploadReceipt = async (req, res) => {
     currentExpenses.push(record);
     await saveExpensesDB(currentExpenses);
 
-    res.status(201).json({
-      message: 'Comprobante procesado y organizado exitosamente.',
-      data: record
-    });
+    res.status(201).json({ message: 'Comprobante procesado exitosamente.', data: record });
   } catch (error) {
-    res.status(500).json({ error: 'Error interno al procesar el archivo.', details: error.message });
+    res.status(500).json({ error: 'Error al procesar el archivo.', details: error.message });
   }
 };
 
+// 2. Agregar un registro manualmente (Ingreso o Gasto)
+exports.createExpenseManual = async (req, res) => {
+  try {
+    const { type, vendor, amount, category, date } = req.body;
+    const currentExpenses = await getExpensesDB();
+
+    const record = {
+      id: Date.now().toString(),
+      type: type || 'gasto', // 'ingreso' o 'gasto'
+      vendor: vendor || 'Movimiento manual',
+      amount: Number(amount) || 0,
+      currency: 'MXN',
+      date: date || new Date().toISOString().split('T')[0],
+      category: category || 'Otros',
+      filePath: null,
+      uploadedAt: new Date().toISOString()
+    };
+
+    currentExpenses.push(record);
+    await saveExpensesDB(currentExpenses);
+
+    res.status(201).json({ message: 'Registro agregado exitosamente.', data: record });
+  } catch (error) {
+    res.status(500).json({ error: 'Error al crear el registro.' });
+  }
+};
+
+// 3. Editar un registro existente
+exports.updateExpense = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { type, vendor, amount, category, date } = req.body;
+    let currentExpenses = await getExpensesDB();
+
+    const index = currentExpenses.findIndex(item => item.id === id);
+    if (index === -1) {
+      return res.status(404).json({ error: 'Registro no encontrado.' });
+    }
+
+    currentExpenses[index] = {
+      ...currentExpenses[index],
+      type: type ?? (currentExpenses[index].type || 'gasto'),
+      vendor: vendor ?? currentExpenses[index].vendor,
+      amount: amount !== undefined ? Number(amount) : currentExpenses[index].amount,
+      category: category ?? currentExpenses[index].category,
+      date: date ?? currentExpenses[index].date
+    };
+
+    await saveExpensesDB(currentExpenses);
+    res.json({ message: 'Registro actualizado correctamente.', data: currentExpenses[index] });
+  } catch (error) {
+    res.status(500).json({ error: 'Error al actualizar el registro.' });
+  }
+};
+
+// 4. Obtener resumen (Ingresos, Gastos y Balance Disponible)
 exports.getMonthlySummary = async (req, res) => {
   try {
     const { year, month } = req.query;
@@ -62,15 +118,80 @@ exports.getMonthlySummary = async (req, res) => {
       return (!year || expYear === year) && (!month || expMonth === month.padStart(2, '0'));
     });
 
-    const total = filtered.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
+    let totalIncome = 0;
+    let totalExpenses = 0;
+
+    filtered.forEach(item => {
+      const amt = Number(item.amount) || 0;
+      if (item.type === 'ingreso') {
+        totalIncome += amt;
+      } else {
+        totalExpenses += amt;
+      }
+    });
+
+    const balance = totalIncome - totalExpenses;
 
     res.json({
       period: { year: year || 'Todos', month: month || 'Todos' },
-      totalExpenses: total,
+      totalIncome,
+      totalExpenses,
+      balance,
       count: filtered.length,
       items: filtered
     });
   } catch (error) {
-    res.status(500).json({ error: 'Error al consultar resumen mensual.' });
+    res.status(500).json({ error: 'Error al consultar el resumen.' });
+  }
+};
+
+// 5. Descargar la base de datos en formato Excel (.xlsx)
+exports.exportToExcel = async (req, res) => {
+  try {
+    const expenses = await getExpensesDB();
+
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Control Financiero');
+
+    worksheet.columns = [
+      { header: 'ID', key: 'id', width: 15 },
+      { header: 'Tipo', key: 'type', width: 12 },
+      { header: 'Fecha', key: 'date', width: 15 },
+      { header: 'Establecimiento / Concepto', key: 'vendor', width: 30 },
+      { header: 'Categoría', key: 'category', width: 20 },
+      { header: 'Monto ($)', key: 'amount', width: 15 },
+      { header: 'Moneda', key: 'currency', width: 10 }
+    ];
+
+    expenses.forEach(item => worksheet.addRow({
+      ...item,
+      type: item.type === 'ingreso' ? 'Ingreso' : 'Gasto'
+    }));
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="control_financiero.xlsx"');
+
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (error) {
+    res.status(500).json({ error: 'Error al generar el archivo Excel.' });
+  }
+};
+// 6. Eliminar un registro
+exports.deleteExpense = async (req, res) => {
+  try {
+    const { id } = req.params;
+    let currentExpenses = await getExpensesDB();
+
+    const filteredExpenses = currentExpenses.filter(item => item.id !== id);
+
+    if (currentExpenses.length === filteredExpenses.length) {
+      return res.status(404).json({ error: 'Registro no encontrado.' });
+    }
+
+    await saveExpensesDB(filteredExpenses);
+    res.json({ message: 'Registro eliminado correctamente.' });
+  } catch (error) {
+    res.status(500).json({ error: 'Error al eliminar el registro.' });
   }
 };

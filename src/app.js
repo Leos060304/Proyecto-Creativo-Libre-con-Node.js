@@ -10,20 +10,16 @@ const PORT = process.env.PORT || 3000;
 const upload = multer({ dest: path.join(__dirname, '../storage/inbox') });
 
 app.use(express.json());
+app.use(express.static(path.join(__dirname, '../')));
 
-app.get('/', (req, res) => {
-  res.json({
-    message: 'Servidor de Gestión de Gastos Activo 🚀',
-    endpoints: [
-      'POST /api/expenses/upload - Subir comprobante PDF',
-      'GET /api/expenses/summary?year=YYYY&month=MM - Obtener resumen'
-    ]
-  });
-});
-
+// Endpoints
 app.post('/api/expenses/upload', upload.single('receipt'), expenseController.uploadReceipt);
+app.post('/api/expenses/manual', expenseController.createExpenseManual);
+app.put('/api/expenses/:id', expenseController.updateExpense);
 app.get('/api/expenses/summary', expenseController.getMonthlySummary);
+app.get('/api/expenses/export/excel', expenseController.exportToExcel);
 
 app.listen(PORT, () => {
   console.log(`Servidor ejecutándose en http://localhost:${PORT}`);
 });
+app.delete('/api/expenses/:id', expenseController.deleteExpense);
