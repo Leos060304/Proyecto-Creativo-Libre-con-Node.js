@@ -7,7 +7,7 @@
 <style>
   body { 
     font-family: Arial, sans-serif; 
-    max-width: 1100px; /* Incrementado para dar más espacio a la tabla */
+    max-width: 1100px; 
     margin: 30px auto; 
     padding: 0 20px; 
     background: #f8f9fa; 
@@ -19,12 +19,11 @@
     border-radius: 8px; 
     box-shadow: 0 2px 6px rgba(0,0,0,0.1); 
     margin-bottom: 20px; 
-    overflow-x: auto; /* Permite desplazamiento si la pantalla es muy angosta */
+    overflow-x: auto; 
   }
   .form-group { display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; align-items: center; }
   input, select, button { padding: 8px 12px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
   
-  /* Ajuste de inputs dentro de la tabla para optimizar espacio */
   table input[type="text"], table input[type="number"], table select {
     width: 90%;
     box-sizing: border-box;
@@ -35,7 +34,6 @@
   .btn-download { background: #007bff; float: right; margin-bottom: 10px; }
   .btn-download:hover { background: #0056b3; }
   
-  /* Indicadores Financieros */
   .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px; }
   .metric-card { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.08); text-align: center; }
   .metric-title { font-size: 14px; color: #6c757d; font-weight: bold; }
@@ -53,7 +51,6 @@
 
   <h1>📊 Control de Ingresos y Gastos Mensuales</h1>
 
-  <!-- Tarjetas de Resumen Financiero -->
   <div class="summary-grid">
     <div class="metric-card">
       <div class="metric-title">💵 Total Ingresos</div>
@@ -122,7 +119,6 @@
       const res = await fetch('/api/expenses/summary');
       const data = await res.json();
       
-      // Actualizar métricas
       document.getElementById('totalIncome').textContent = (data.totalIncome || 0).toFixed(2);
       document.getElementById('totalExpense').textContent = (data.totalExpenses || 0).toFixed(2);
       document.getElementById('totalBalance').textContent = (data.balance || 0).toFixed(2);
@@ -136,7 +132,6 @@
         return;
       }
 
-      // Renderizar filas con botón de eliminar
       data.items.forEach(exp => {
         const isIncome = exp.type === 'ingreso';
         const tr = document.createElement('tr');
@@ -172,7 +167,6 @@
     }
   }
 
-  // Guardar nuevo registro
   document.getElementById('manualForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const btn = document.getElementById('btnSave');
@@ -203,7 +197,6 @@
     }
   });
 
-  // Editar campo directamente
   async function updateExpense(id, field, value) {
     await fetch(`/api/expenses/${id}`, {
       method: 'PUT',
@@ -213,7 +206,6 @@
     await loadExpenses();
   }
 
-  // Eliminar registro
   async function deleteExpense(id) {
     if (confirm('¿Estás seguro de que deseas borrar este registro?')) {
       await fetch(`/api/expenses/${id}`, { method: 'DELETE' });

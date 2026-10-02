@@ -19,7 +19,6 @@ async function saveExpensesDB(data) {
   await fs.writeFile(dbPath, JSON.stringify(data, null, 2));
 }
 
-// 1. Subir comprobante en PDF (Gasto automático)
 exports.uploadReceipt = async (req, res) => {
   try {
     if (!req.file) {
@@ -35,7 +34,7 @@ exports.uploadReceipt = async (req, res) => {
 
     const record = {
       id: Date.now().toString(),
-      type: 'gasto', // gasto por defecto al ser factura
+      type: 'gasto', 
       ...parsedData,
       filePath: finalPath,
       uploadedAt: new Date().toISOString()
@@ -51,7 +50,6 @@ exports.uploadReceipt = async (req, res) => {
   }
 };
 
-// 2. Agregar un registro manualmente (Ingreso o Gasto)
 exports.createExpenseManual = async (req, res) => {
   try {
     const { type, vendor, amount, category, date } = req.body;
@@ -59,7 +57,7 @@ exports.createExpenseManual = async (req, res) => {
 
     const record = {
       id: Date.now().toString(),
-      type: type || 'gasto', // 'ingreso' o 'gasto'
+      type: type || 'gasto', 
       vendor: vendor || 'Movimiento manual',
       amount: Number(amount) || 0,
       currency: 'MXN',
@@ -78,7 +76,6 @@ exports.createExpenseManual = async (req, res) => {
   }
 };
 
-// 3. Editar un registro existente
 exports.updateExpense = async (req, res) => {
   try {
     const { id } = req.params;
@@ -106,7 +103,6 @@ exports.updateExpense = async (req, res) => {
   }
 };
 
-// 4. Obtener resumen (Ingresos, Gastos y Balance Disponible)
 exports.getMonthlySummary = async (req, res) => {
   try {
     const { year, month } = req.query;
@@ -145,7 +141,6 @@ exports.getMonthlySummary = async (req, res) => {
   }
 };
 
-// 5. Descargar la base de datos en formato Excel (.xlsx)
 exports.exportToExcel = async (req, res) => {
   try {
     const expenses = await getExpensesDB();
